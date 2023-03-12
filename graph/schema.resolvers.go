@@ -6,18 +6,78 @@ package graph
 
 import (
 	"context"
-	"fmt"
+	"database/sql"
+	_ "github.com/go-sql-driver/mysql"
 	"gqlgen-subscription-sample/graph/model"
 )
 
-// CreateTodo is the resolver for the createTodo field.
-func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) (*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: CreateTodo - createTodo"))
+// CreateSmartMat is the resolver for the createSmartMat field.
+func (r *mutationResolver) CreateSmartMat(ctx context.Context, currentWeight float64) (*model.SmartMat, error) {
+	dbDriver := "mysql"
+	dsn := "root:root@tcp(db:3306)/smart_shopping"
+	db, err := sql.Open(dbDriver, dsn)
+	if err != nil {
+		return &model.SmartMat{}, err
+	}
+	defer db.Close()
+	result, err := db.Exec("INSERT INTO smart_mat (current_weight) VALUES (?)", currentWeight)
+	if err != nil {
+		return &model.SmartMat{}, err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return &model.SmartMat{}, err
+	}
+	return &model.SmartMat{
+		ID:            id,
+		CurrentWeight: currentWeight,
+	}, err
 }
 
-// Todos is the resolver for the todos field.
-func (r *queryResolver) Todos(ctx context.Context) ([]*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: Todos - todos"))
+func (r *mutationResolver) UpdateSmartMatWeight(ctx context.Context, id int64, currentWeight float64) (*model.SmartMat, error) {
+	dbDriver := "mysql"
+	dsn := "root:root@tcp(db:3306)/smart_shopping"
+	db, err := sql.Open(dbDriver, dsn)
+	if err != nil {
+		return &model.SmartMat{}, err
+	}
+	defer db.Close()
+	_, err = db.Exec("UPDATE smart_mat SET current_weight = ? WHERE id = ?", currentWeight, id)
+	if err != nil {
+		return &model.SmartMat{}, err
+	}
+	if err != nil {
+		return &model.SmartMat{}, err
+	}
+	return &model.SmartMat{
+		ID:            id,
+		CurrentWeight: currentWeight,
+	}, err
+}
+
+// SmartMats is the resolver for the smartMats field.
+func (r *queryResolver) SmartMats(ctx context.Context) ([]*model.SmartMat, error) {
+	dbDriver := "mysql"
+	dsn := "root:root@tcp(db:3306)/smart_shopping"
+	db, err := sql.Open(dbDriver, dsn)
+	if err != nil {
+		return []*model.SmartMat{}, err
+	}
+	defer db.Close()
+	rows, err := db.Query("SELECT * FROM smart_mat")
+	defer rows.Close()
+	if err != nil {
+		return []*model.SmartMat{}, err
+	}
+	smartMats := make([]*model.SmartMat, 0)
+	for rows.Next() {
+		sm := &model.SmartMat{}
+		if err = rows.Scan(&sm.ID, &sm.CurrentWeight); err != nil {
+			return []*model.SmartMat{}, err
+		}
+		smartMats = append(smartMats, sm)
+	}
+	return smartMats, nil
 }
 
 // Mutation returns MutationResolver implementation.
@@ -27,4 +87,5 @@ func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
 type mutationResolver struct{ *Resolver }
+
 type queryResolver struct{ *Resolver }
