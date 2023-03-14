@@ -7,7 +7,9 @@ package graph
 import (
 	"context"
 	"database/sql"
+
 	_ "github.com/go-sql-driver/mysql"
+
 	"gqlgen-subscription-sample/graph/model"
 )
 
@@ -20,7 +22,7 @@ func (r *mutationResolver) CreateSmartMat(ctx context.Context, currentWeight flo
 		return &model.SmartMat{}, err
 	}
 	defer db.Close()
-	result, err := db.Exec("INSERT INTO smart_mat (current_weight) VALUES (?)", currentWeight)
+	result, err := db.Exec("INSERT INTO smart_mats (current_weight) VALUES (?)", currentWeight)
 	if err != nil {
 		return &model.SmartMat{}, err
 	}
@@ -42,7 +44,7 @@ func (r *mutationResolver) UpdateSmartMatWeight(ctx context.Context, id int64, c
 		return &model.SmartMat{}, err
 	}
 	defer db.Close()
-	_, err = db.Exec("UPDATE smart_mat SET current_weight = ? WHERE id = ?", currentWeight, id)
+	_, err = db.Exec("UPDATE smart_mats SET current_weight = ? WHERE id = ?", currentWeight, id)
 	if err != nil {
 		return &model.SmartMat{}, err
 	}
@@ -64,7 +66,7 @@ func (r *queryResolver) SmartMats(ctx context.Context) ([]*model.SmartMat, error
 		return []*model.SmartMat{}, err
 	}
 	defer db.Close()
-	rows, err := db.Query("SELECT * FROM smart_mat")
+	rows, err := db.Query("SELECT * FROM smart_mats")
 	defer rows.Close()
 	if err != nil {
 		return []*model.SmartMat{}, err
