@@ -7,10 +7,9 @@ package graph
 import (
 	"context"
 	"database/sql"
+	"gqlgen-subscription-sample/graph/model"
 
 	_ "github.com/go-sql-driver/mysql"
-
-	"gqlgen-subscription-sample/graph/model"
 )
 
 // CreateSmartMat is the resolver for the createSmartMat field.
@@ -36,7 +35,9 @@ func (r *mutationResolver) CreateSmartMat(ctx context.Context, currentWeight flo
 	}, err
 }
 
+// UpdateSmartMatWeight is the resolver for the updateSmartMatWeight field.
 func (r *mutationResolver) UpdateSmartMatWeight(ctx context.Context, id int64, currentWeight float64) (*model.SmartMat, error) {
+	// db更新処理
 	dbDriver := "mysql"
 	dsn := "root:root@tcp(db:3306)/smart_shopping"
 	db, err := sql.Open(dbDriver, dsn)
@@ -51,6 +52,18 @@ func (r *mutationResolver) UpdateSmartMatWeight(ctx context.Context, id int64, c
 	if err != nil {
 		return &model.SmartMat{}, err
 	}
+
+	// サブスクリプション更新処理
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	// 対応するMatIDのチャネルにPublish
+	for _, ch := range r.channelsByMatID[id] {
+		ch <- &model.SmartMat{
+			ID:            id,
+			CurrentWeight: currentWeight,
+		}
+	}
+
 	return &model.SmartMat{
 		ID:            id,
 		CurrentWeight: currentWeight,
@@ -82,12 +95,41 @@ func (r *queryResolver) SmartMats(ctx context.Context) ([]*model.SmartMat, error
 	return smartMats, nil
 }
 
+// SmartMatWeightUpdated is the resolver for the smartMatWeightUpdated field.
+func (r *subscriptionResolver) SmartMatWeightUpdated(ctx context.Context, id int64) (<-chan *model.SmartMat, error) {
+	// mutex で channelsByMatID の操作を排他制御
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	// マットIDに対応するチャネルを追加
+	ch := make(chan *model.SmartMat, 1)
+	r.channelsByMatID[id] = append(r.channelsByMatID[id], ch)
+
+	// コネクション終了時にチャネルを削除
+	go func() {
+		<-ctx.Done()
+		r.mutex.Lock()
+		defer r.mutex.Unlock()
+		for i, c := range r.channelsByMatID[id] {
+			if c == ch {
+				r.channelsByMatID[id] = append(r.channelsByMatID[id][:i], r.channelsByMatID[id][i+1:]...)
+				break
+			}
+		}
+	}()
+
+	return ch, nil
+}
+
 // Mutation returns MutationResolver implementation.
 func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
-type mutationResolver struct{ *Resolver }
+// Subscription returns SubscriptionResolver implementation.
+func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
+type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }

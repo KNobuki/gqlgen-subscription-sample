@@ -15,3 +15,7 @@ type Mutation {
   createSmartMat(currentWeight: Float!): SmartMat!
   updateSmartMatWeight(id: ID!, currentWeight: Float!): SmartMat!
 }
+
+type Subscription {
+  smartMatWeightUpdated(id: ID!): SmartMat!
+}
