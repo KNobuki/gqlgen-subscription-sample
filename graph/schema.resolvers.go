@@ -7,6 +7,7 @@ package graph
 import (
 	"context"
 	"database/sql"
+
 	"gqlgen-subscription-sample/graph/model"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -54,10 +55,10 @@ func (r *mutationResolver) UpdateSmartMatWeight(ctx context.Context, id int64, c
 	}
 
 	// サブスクリプション更新処理
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
+	r.Mutex.Lock()
+	defer r.Mutex.Unlock()
 	// 対応するMatIDのチャネルにPublish
-	for _, ch := range r.channelsByMatID[id] {
+	for _, ch := range r.ChannelsByMatID[id] {
 		ch <- &model.SmartMat{
 			ID:            id,
 			CurrentWeight: currentWeight,
@@ -97,22 +98,22 @@ func (r *queryResolver) SmartMats(ctx context.Context) ([]*model.SmartMat, error
 
 // SmartMatWeightUpdated is the resolver for the smartMatWeightUpdated field.
 func (r *subscriptionResolver) SmartMatWeightUpdated(ctx context.Context, id int64) (<-chan *model.SmartMat, error) {
-	// mutex で channelsByMatID の操作を排他制御
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
+	// Mutex で ChannelsByMatID の操作を排他制御
+	r.Mutex.Lock()
+	defer r.Mutex.Unlock()
 
 	// マットIDに対応するチャネルを追加
 	ch := make(chan *model.SmartMat, 1)
-	r.channelsByMatID[id] = append(r.channelsByMatID[id], ch)
+	r.ChannelsByMatID[id] = append(r.ChannelsByMatID[id], ch)
 
 	// コネクション終了時にチャネルを削除
 	go func() {
 		<-ctx.Done()
-		r.mutex.Lock()
-		defer r.mutex.Unlock()
-		for i, c := range r.channelsByMatID[id] {
+		r.Mutex.Lock()
+		defer r.Mutex.Unlock()
+		for i, c := range r.ChannelsByMatID[id] {
 			if c == ch {
-				r.channelsByMatID[id] = append(r.channelsByMatID[id][:i], r.channelsByMatID[id][i+1:]...)
+				r.ChannelsByMatID[id] = append(r.ChannelsByMatID[id][:i], r.ChannelsByMatID[id][i+1:]...)
 				break
 			}
 		}
